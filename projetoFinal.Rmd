@@ -1,0 +1,524 @@
+---
+title: "Projeto Final"
+author: "Thiago Barbosa"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::robobook:
+    highlight: kate
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introdução
+
+## Projeto Final: Análise de Dados da Olist Store (2016 a 2018)
+
+Este projeto tem como foco a análise dos dados da Olist Store, uma plataforma de e-commerce que conecta pequenos e médios lojistas a diversos marketplaces. O objetivo é compreender o comportamento do mercado, identificar padrões de venda e avaliar a eficiência das operações da plataforma no período de 2016 a 2018. A análise será útil para lojistas que utilizam a plataforma, consumidores e profissionais de e-commerce e logística, oferecendo insights baseados em dados que podem otimizar estratégias de vendas e aprimorar a experiência do cliente.
+
+Os dados utilizados foram disponibilizados pelo Kaggle e contêm informações detalhadas sobre pedidos, produtos, vendedores e avaliações de clientes. A análise será realizada com o uso de R, juntamente com pacotes como ggplot2 e plotly, para explorar os dados, identificar padrões e investigar correlações. Entre as métricas analisadas estão o desempenho das categorias de produtos e a satisfação do cliente, com foco em tendências temporais e geográficas.
+
+Com uma abordagem quantitativa, esta análise buscará identificar tendências de vendas e padrões sazonais, além de avaliar o impacto de fatores externos, como localização dos vendedores, sobre os resultados. Esses insights podem ser utilizados por lojistas para otimizar seus estoques, estratégias de marketing e atendimento ao cliente, além de fornecer uma visão clara sobre quais categorias de produtos são mais lucrativas.
+
+<img src="Olist_png.png" width="70%">
+A Olist é uma plataforma que facilita a integração de pequenos e médios lojistas a marketplaces, oferecendo suporte logístico e de atendimento. Isso permite que os vendedores ampliem seu alcance e se concentrem no crescimento dos negócios. Para mais informações sobre os dados utilizados nesta análise, acesse:[Kaggle - Brazilian E-Commerce Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce).
+
+# Pacotes utilizados
+
+```{r message=FALSE, warning=FALSE}
+
+library(knitr)        # Para renderizar documentos em RMarkdown.
+library(dplyr)        # Manipulação e transformação de dados.
+library(ggplot2)      # Visualização de dados.
+library(plotly)       # Gráficos interativos a partir dos objetos ggplot2.
+library(scales)       # Formatação e escala de eixos e rótulos em gráficos.
+library(lubridate)    # Manipulação de datas e horários.
+library(rnaturalearth) # Dados geoespaciais de países e continentes.
+library(kableExtra)   # Melhorar a apresentação de tabelas geradas com knitr::kable().
+library(tidytext)     # Análise de texto e manipulação de textos.
+library(tidyr)        # Para limpeza e organização de dados.
+library(gridExtra)    # Para combinar gráficos em um único layout.
+library(stringr)      # Manipulação de strings.
+```
+
+# Preparação dos Dados
+Neste projeto, utilizaremos um conjunto de dados que contém 9 tabelas. Para facilitar a análise, vamos utilizar algumas dessas tabelas e dividir o processo em duas partes, agrupando as mais relevantes em cada etapa. Abaixo, apresentamos uma visão geral do schema das tabelas, destacando as conexões entre elas:
+
+<img src="schema.png" width="100%">
+
+## Tabelas Utilizadas na Primeira Análise {.tabset}
+### Itens do Pedido
+```{r}
+# Carregar os dados dos itens do pedido
+order_items_df <- read.csv("datasets/olist_order_items_dataset.csv")
+# Mostrar as primeiras linhas do dataset de itens do pedido
+kable(head(order_items_df))
+```
+#### Metadados do pedido
+
+> **Número total de linhas: 112.650**
+
+```{r echo=FALSE}
+df <- data.frame(
+  Nome_do_Campo = c("order_id", "order_item_id", "product_id", "seller_id", "shipping_limit_date", "price", "freight_value"),
+  Tipo_de_Dado = c("character", "integer", "character", "character", "character", "numeric", "numeric"),
+  Descrição = c("ID do pedido", "ID do item do pedido", "ID do produto", "ID do vendedor", "Data limite de envio", "Preço", "Valor do frete")
+)
+
+
+kable(df)
+```
+
+
+### Produtos
+```{r}
+# Carregar os dados dos produtos
+products_df <- read.csv("datasets/olist_products_dataset.csv")
+
+# Mostrar as primeiras linhas do dataset de produtos
+kable(head(products_df))
+
+
+
+```
+
+#### Metadados do produto
+
+> **Número total de linhas: 32.951**
+
+```{r echo=FALSE}
+df <- data.frame(
+  Nome_do_Campo = c("product_id", "product_category_name", "product_name_length", "product_description_length", "product_photos_qty", "product_weight_g", "product_length_cm", "product_height_cm", "product_width_cm"),
+  Tipo_de_Dado = c("character", "character", "integer", "integer", "integer", "integer", "integer", "integer", "integer"),
+  Descrição = c("ID do produto", "Nome da categoria do produto", "Comprimento do nome do produto", "Comprimento da descrição do produto", "Quantidade de fotos do produto", "Peso do produto (em gramas)", "Comprimento do produto (em cm)", "Altura do produto (em cm)", "Largura do produto (em cm)")
+)
+
+kable(df)
+
+```
+
+### Vendedores
+```{r}
+# Carregar os dados dos vendedores
+sellers_df <- read.csv("datasets/olist_sellers_dataset.csv")
+
+# Mostrar as primeiras linhas do dataset de vendedores
+kable(head(sellers_df))
+
+
+```
+
+#### Metadados do vendedores
+
+> **Número total de linhas: 3.095**
+
+```{r echo=FALSE}
+
+df <- data.frame(
+  Nome_do_Campo = c("seller_id", "seller_zip_code_prefix", "seller_city", "seller_state"),
+  Tipo_de_Dado = c("character", "integer", "character", "character"),
+  Descrição = c("ID do vendedor", "Prefixo do CEP do vendedor", "Cidade do vendedor", "Estado do vendedor")
+)
+
+
+kable(df)
+```
+## Mesclando as Tabelas
+```{r}
+# Mesclar o dataset de itens do pedido com o dataset de produtos para adicionar a categoria de cada produto
+merged_df <- merge(order_items_df,
+                   products_df[, c("product_id", "product_category_name")],
+                   by = "product_id",
+                   all.x = TRUE)
+
+# Mesclar o dataset resultante com o dataset de vendedores para adicionar o estado de cada vendedor
+final_df <- merge(merged_df,
+                  sellers_df[, c("seller_id", "seller_state")],
+                  by = "seller_id",
+                  all.x = TRUE)
+
+# Mostrar as primeiras linhas do dataset mesclado
+kable(head(final_df))
+```
+## Selecionando Colunas Relevantes
+```{r}
+# Selecionar apenas as colunas relevantes: nome da categoria, preço, data limite de envio, e estado do vendedor
+final_df <- final_df %>%
+  select(product_category_name, price, shipping_limit_date, seller_state)
+
+# Mostrar as primeiras linhas do dataset filtrado
+kable(head(final_df))
+```
+## Limpando os Dados
+```{r}
+# Remover registros que não possuem categoria de produto
+final_df <- final_df[which(final_df$product_category_name != ""), ]
+
+# Converter a coluna 'shipping_limit_date' para o formato de data
+final_df$shipping_limit_date <- as.Date(final_df$shipping_limit_date)
+
+# Mostrar as primeiras linhas do dataset final, limpo e pronto para análise
+kable(head(final_df))
+
+
+```
+#### Metadados da tabela final
+
+> **Número total de linhas: 111.047**
+
+```{r echo=FALSE}
+df <- data.frame(
+  Nome_do_Campo = c("product_category_name", " price", "shipping_limit_date", "seller_state"),
+  Tipo_de_Dado = c("character", "Numeric", "Date", "character"),
+  Descrição = c("Nome da categoria do produto", "Preço", "Data limite de envio", "Estado do vendedor")
+)
+
+
+kable(df)
+```
+
+## Tabelas para segunda parte da analise
+### Reviews
+```{r}
+# Carregar os dados dos reviews
+olist_order_reviews <- read.csv("datasets/olist_order_reviews_dataset.csv")
+# Mostrar as primeiras linhas do dataset de reviews
+kable(head(olist_order_reviews))
+```
+
+#### Metadados da tabela  de reviews
+
+> **Número total de linhas: 99.224 **
+
+```{r echo=FALSE}
+df <- data.frame(
+  Nome_do_Campo = c("review_id", "order_id", "review_score", "review_comment_title", "review_comment_message", "review_creation_date", "review_answer_timestamp"),
+  Tipo_de_Dado = c("character", "character", "Integer", "character", "character", "character", "character"),
+  Descrição = c("ID da avaliação", "ID do pedido", "Pontuação da avaliação", "Título do comentário da avaliação", "Mensagem do comentário da avaliação", "Data de criação da avaliação", "Data e hora da resposta à avaliação")
+)
+
+kable(df)
+```
+
+## Selecionando Colunas Relevantes
+```{r}
+# Selecionar apenas as colunas relevantes: nome da categoria, preço, data limite de envio, e estado do vendedor
+olist_order_reviews <- olist_order_reviews %>%
+  select(review_score, review_comment_title, review_comment_message)
+
+# Mostrar as primeiras linhas do dataset filtrado
+kable(head(olist_order_reviews))
+```
+
+#### Metadados da tabela final de reviews
+
+> **Número total de linhas: 99.224 **
+
+```{r echo=FALSE}
+df <- data.frame(
+  Nome_do_Campo = c("review_score", " review_comment_title", "review_comment_message"),
+  Tipo_de_Dado = c("Integer", "character", "character"),
+  Descrição = c("Pontuação da avaliação", "Título do comentário da avaliação", "Mensagem do comentário da avaliação")
+)
+
+
+kable(df)
+```
+
+# Analises
+
+
+## Categorias de Produtos Mais Vendidas
+```{r message=FALSE, warning=FALSE}
+# Criar o dataframe com as categorias mais vendidas
+top_10_categoria <- final_df %>%
+  group_by(product_category_name) %>%
+  summarise(total_pedidos = n()) %>%
+  arrange(desc(total_pedidos))%>%
+  head(10)
+
+# Criar o gráfico de barras
+p <- ggplot(top_10_categoria, aes(x = reorder(product_category_name, total_pedidos), y = total_pedidos)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() + 
+  labs(title = "Top 10 Categorias de Produtos Mais Vendidas",
+       x = "Categoria de Produto",
+       y = "Total de Pedidos") +
+  theme_minimal() # Estilo clean para o gráfico
+
+
+
+# Tornar o gráfico interativo com plotly, removendo as informações extras
+
+p_interativo <- ggplotly(p, tooltip = c("y")) %>%
+  layout(
+    width = 700  # Defina a largura desejada
+
+  )
+
+# Exibir o gráfico interativo
+p_interativo
+```
+
+ <br/>
+ 1. **Identificação das Categorias de Produtos Mais Vendidas**: Através da análise de categorias de produtos mais vendidas, conseguimos visualizar quais são os produtos que geram maior volume de pedidos. Isso pode auxiliar a equipe de marketing a direcionar campanhas mais eficazes, focando nas categorias com maior demanda.
+ <br/>
+ 
+## Receita Total e Preço Médio por Categoria
+```{r warning=FALSE}
+
+
+# Calcular a receita total e o preço médio por categoria
+analise_comb <- final_df %>%
+  group_by(product_category_name) %>%
+  summarise(
+    receita_total = sum(price, na.rm = TRUE),
+    preco_medio = mean(price, na.rm = TRUE)
+  ) %>%
+  arrange(desc(receita_total)) %>%
+  slice(1:5)  # Seleciona as top 5 categorias
+
+# Calculando o fator de escala para ajustar o gráfico de linha ao gráfico de barras
+scale_factor <- max(analise_comb$receita_total) / max(analise_comb$preco_medio)
+
+# Adicionar coluna transformada para o gráfico de linha
+analise_comb <- analise_comb %>%
+  mutate(preco_medio_ajustado = preco_medio * scale_factor)
+
+# Criar o gráfico combinado com ggplot2
+p <- ggplot(analise_comb, aes(x = reorder(product_category_name, receita_total))) +
+  geom_bar(aes(y = receita_total, text = paste("Receita Total: R$", scales::comma(receita_total))),
+           stat = "identity", fill = "steelblue", width = 0.6) +
+  geom_line(aes(y = preco_medio_ajustado, group = 1, text = paste("Preço Médio: R$", scales::comma(preco_medio, accuracy = 0.01))),
+            color = "darkred", size = 1.5) +
+  geom_point(aes(y = preco_medio_ajustado, text = paste("Preço Médio: R$", scales::comma(preco_medio, accuracy = 0.01))),
+             color = "darkred", size = 3) +
+  scale_y_continuous(
+    name = "Receita Total (R$)",
+    sec.axis = sec_axis(~ . / scale_factor, name = "Preço Médio (R$)")
+  ) +
+  labs(
+    title = "Receita Total e Preço Médio por Categoria de Produto Top 5",
+    x = "Categoria de Produto"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+
+# Tornar o gráfico interativo usando plotly e ajustar o tooltip
+p_interativo <- ggplotly(p, tooltip = c("text")) %>%
+  layout(
+    width = 700,  # Defina a largura desejada
+    height = 500  # Defina a altura desejada
+  )
+
+# Exibir o gráfico interativo
+p_interativo
+
+```
+
+<br/>
+2. **Receita Total e Preço Médio por Categoria**: O gráfico combinado entre receita total e preço médio por categoria de produto oferece insights sobre quais categorias são mais lucrativas e como o preço médio dos produtos pode influenciar essa lucratividade. Isso é crucial para a estratégia de precificação e priorização de inventário.
+<br/>
+
+## Total de Pedidos por Mês
+```{r}
+
+# Agrupar os dados por mês e contar o número total de pedidos por mês, somando os anos
+pedidos_por_mes <- final_df %>%
+  mutate(month = month(shipping_limit_date, label = TRUE)) %>%
+  group_by(month) %>%
+  summarise(total_pedidos = n()) %>%
+  arrange(month)
+
+# Criar o gráfico de barras
+p <- ggplot(pedidos_por_mes, aes(x = month, y = total_pedidos)) +
+  geom_bar(stat = "identity",fill = "steelblue") +
+  geom_text(aes(label = total_pedidos), vjust = -0.5, color = "black", size = 3.5) +
+  labs(
+    title = "Total de Pedidos por Mês (Todos os Anos)",
+    x = "Mês",
+    y = "Total de Pedidos"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "none"
+  )
+
+# Exibir o gráfico
+print(p)
+```
+
+<br/>
+3. **Análise Temporal dos Pedidos**: Ao analisar a distribuição dos pedidos ao longo dos meses, independentemente do ano, é possível identificar padrões sazonais e picos de vendas. Essas informações são fundamentais para planejamento de estoque e campanhas sazonais.
+<br/>
+
+## Distribuição de Pedidos por Estado
+```{r}
+# Carregar o shapefile dos estados brasileiros
+brasil_estados <- ne_states(country = "Brazil", returnclass = "sf")
+
+# Agrupar os dados por estado e contar o número de pedidos
+pedidos_por_estado <- final_df %>%
+  group_by(seller_state) %>%
+  summarise(total_pedidos = n())
+
+# Unir o shapefile dos estados com os dados dos pedidos
+brasil_estados <- brasil_estados %>%
+  left_join(pedidos_por_estado, by = c("postal" = "seller_state"))
+
+# Mapa de calor com ggplot2
+p <- ggplot(data = brasil_estados) +
+  geom_sf(aes(fill = total_pedidos), color = "white") +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
+  labs(
+    title = "Distribuição de Pedidos por Estado",
+    fill = "Total de Pedidos                      /"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+
+# Converter para um gráfico interativo
+p_interativo <- ggplotly(p)
+
+# Exibir o gráfico interativo
+p_interativo
+
+```
+
+<br/>
+4. **Distribuição Geográfica dos Pedidos**: A distribuição de pedidos por estado, visualizada em um mapa de calor, revela quais regiões têm maior concentração de vendas. Essas informações podem ser utilizadas para otimizar a logística de distribuição, além de identificar oportunidades para expansão em mercados menos explorados.
+<br/>
+
+## Reviews
+```{r}
+# Contar quantas reviews existem para cada score e quantas delas possuem comentário (em uma das colunas de título ou mensagem)
+result <- olist_order_reviews %>%
+  group_by(review_score) %>%
+  summarise(
+    total_reviews = n(),  # Total de reviews para cada score
+    reviews_com_comentarios = sum(
+      !is.na(review_comment_title) & review_comment_title != "" |
+      !is.na(review_comment_message) & review_comment_message != ""
+    )  # Contar reviews com algum comentário (título ou mensagem)
+  )
+
+
+# Criar o gráfico de barras
+p <- ggplot(result, aes(x = factor(review_score))) +
+  geom_bar(aes(y = total_reviews, fill = "Total de Reviews"), stat = "identity", position = "dodge", color = "black") +
+  geom_bar(aes(y = reviews_com_comentarios, fill = "Reviews com Comentários       "), stat = "identity", position = "dodge", color = "black") +
+  labs(title = "Distribuição de Reviews e Comentários por Score",
+       x = "Score de Review",
+       y = "Número de Reviews",
+       fill = "Legenda") +
+  scale_fill_manual(values = c("Total de Reviews" = "steelblue", "Reviews com Comentários       " = "darkorange")) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotacionar os rótulos do eixo X
+    plot.margin = margin(20, 10, 10, 10, "pt"),         # Ajustar margens para evitar corte
+    legend.position = "top",                            # Mover a legenda para o topo
+    legend.text = element_text(size = 10),              # Tamanho do texto da legenda
+    legend.title = element_text(size = 12)              # Tamanho do título da legenda
+  )
+
+# Converter para um gráfico interativo
+p_interativo <- ggplotly(p, tooltip = c("y"))
+
+# Exibir o gráfico interativo
+p_interativo
+
+
+```
+<br/>
+5. **Análise das Reviews e Comentários**: Esta análise explora a distribuição de reviews por pontuação (score) e a proporção de reviews que contém comentários textuais. Compreender o relacionamento entre a pontuação e a presença de feedback escrito é essencial para identificar oportunidades de melhoria e estratégias de comunicação com os clientes. O gráfico mostra que reviews com pontuações extremas (1 e 5) tendem a ter mais comentários, enquanto notas intermediárias podem indicar clientes que não tiveram experiências marcantes.
+<br/>
+
+## Principais Padrões de Palavras em Reviews
+```{r message=FALSE, warning=FALSE}
+
+
+# Filtrar os comentários positivos e negativos, removendo NAs, strings vazias e eliminando espaços em branco extras
+comentarios_positivos <- olist_order_reviews %>%
+  filter(review_score %in% c(4, 5)) %>%
+  filter(!is.na(review_comment_message), str_trim(review_comment_message) != "") %>%  # Remover NAs e strings vazias
+  mutate(review_comment_message = str_squish(review_comment_message)) %>%  # Remover espaços em branco extras
+  select(review_comment_message) %>%
+  unnest_tokens(trigram, review_comment_message, token = "ngrams", n = 3)
+
+# Filtrar os comentários positivos e negativos, removendo NAs, strings vazias e eliminando espaços em branco extras
+comentarios_positivos <- olist_order_reviews %>%
+  filter(review_score %in% c(4, 5)) %>%
+  filter(!is.na(review_comment_message), str_trim(review_comment_message) != "") %>%  # Remover NAs e strings vazias
+  mutate(review_comment_message = str_squish(review_comment_message)) %>%  # Remover espaços em branco extras
+  select(review_comment_message) %>%
+  unnest_tokens(trigram, review_comment_message, token = "ngrams", n = 3) %>%
+  filter(trigram != "NA")  # Remover trigramas com NA
+
+comentarios_negativos <- olist_order_reviews %>%
+  filter(review_score %in% c(1, 2)) %>%
+  filter(!is.na(review_comment_message), str_trim(review_comment_message) != "") %>%  # Remover NAs e strings vazias
+  mutate(review_comment_message = str_squish(review_comment_message)) %>%  # Remover espaços em branco extras
+  select(review_comment_message) %>%
+  unnest_tokens(trigram, review_comment_message, token = "ngrams", n = 3) %>%
+  filter(trigram != "NA")  # Remover trigramas com NA
+
+# Contar os trigramas mais frequentes nos comentários positivos e negativos
+trigramas_positivos <- comentarios_positivos %>%
+  count(trigram, sort = TRUE) %>%
+  top_n(10)
+
+trigramas_negativos <- comentarios_negativos %>%
+  count(trigram, sort = TRUE) %>%
+  top_n(10)
+
+# Gráfico para trigramas positivos
+grafico_positivos <- ggplot(trigramas_positivos, aes(x = reorder(trigram, n), y = n)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Principais Comentários Positivos",
+       x = NULL, y = "Frequência") +
+  theme_minimal()
+
+# Gráfico para trigramas negativos
+grafico_negativos <- ggplot(trigramas_negativos, aes(x = reorder(trigram, n), y = n)) +
+  geom_bar(stat = "identity", fill = "brown") +
+  coord_flip() +
+  labs(title = "Principais Comentários Negativos",
+       x = NULL, y = "Frequência") +
+  theme_minimal()
+
+# Mostrar os gráficos lado a lado
+grid.arrange(grafico_positivos, grafico_negativos, ncol = 2)
+
+
+
+
+```
+<br/>
+6. **Análise de Trigramas em Comentários Positivos e Negativos**: A análise de trigramas oferece uma visão mais detalhada sobre os temas recorrentes nas avaliações dos clientes, permitindo identificar padrões de feedback nos comentários positivos e negativos. Isso pode ajudar a entender os principais fatores que levam à satisfação ou insatisfação dos clientes. As palavras mais frequentes nos comentários positivos e negativos revelam áreas que devem ser destacadas nas campanhas de marketing ou ajustadas para melhorar a experiência do cliente.
+<br/>
+
+
+<br/>
+
+
+
+
+# Conclusão
+
+A partir da análise dos dados da Olist Store, foram extraídas informações cruciais que podem orientar decisões estratégicas para otimizar o desempenho da loja. Compreender os padrões de venda e comportamento dos clientes ao longo de diferentes categorias de produtos, regiões geográficas e períodos temporais oferece uma base sólida para melhorar a eficiência operacional e aumentar a lucratividade.
+
+Identificar as categorias de produtos mais populares e avaliar suas margens de lucro permite ajustar o foco da empresa em áreas com maior potencial de crescimento e rentabilidade. Além disso, entender a sazonalidade e as flutuações na demanda possibilita uma melhor previsão de vendas e o planejamento adequado de estoques, evitando desperdícios ou falta de produtos durante os períodos de pico.
+
+A análise geográfica dos pedidos, por sua vez, permite o aprimoramento das estratégias de distribuição e logística, focando em regiões onde há maior demanda ou buscando oportunidades em mercados menos explorados.
+
+Essas percepções juntas podem guiar ações para aumentar a eficiência, expandir para novos mercados e otimizar a oferta de produtos, promovendo um crescimento sustentável para a Olist Store.
